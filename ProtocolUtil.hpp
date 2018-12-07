@@ -36,15 +36,15 @@ std::unordered_map<std::string, std::string> stuffix_map
 class ProtocolUtil//协议工具
 {
 		public:
-				static void Makekv(std::unordered_map<std::string,std::string> &kv_, std::string &str_)
+				static void MakeKV(std::unordered_map<std::string,std::string> &kv_, std::string &str_)
 				{
 						std::size_t pos = str_.find(": ");
 						if(std::string::npos == pos)
 						{
 								return ;
 						}
-						std::string k_ = substr(0,pos);
-						std::string v_ = substr(pos + 2);
+						std::string k_ = str_.substr(0,pos);
+						std::string v_ = str_.substr(pos + 2);
 
 						kv_.insert( make_pair(k_,v_) );
 				}
@@ -66,7 +66,7 @@ class ProtocolUtil//协议工具
 										return "UNKNOW";
 						}
 				};
-				std::string SuffixToType(const std::string &suffix_)//后缀转类型
+				static std::string SuffixToType(const std::string &suffix_)//后缀转类型
 				{
 						return stuffix_map[suffix_];
 				}
@@ -154,7 +154,7 @@ class Request{
 								std::string sub_string_ = rq_head.substr(start,pos - start);//找到所有的子串
 								if( !sub_string_.empty() )
 								{//如果不为空，报头子串就是键值对<key:value>的形式存放
-										ProtocolUtil::Makekv(head_kv,sub_string);
+										ProtocolUtil::MakeKV(head_kv,sub_string_);
 								}
 								else
 								{
@@ -168,7 +168,7 @@ class Request{
 						std::string cl_ = head_kv["Content-Length"];//获取报头键值对中的正文长度
 						if(!cl_.empty())
 						{
-								std::string stringstream ss(cl_);//将string类型的正文长度转换成整形长度
+								std::stringstream ss(cl_);//将string类型的正文长度转换成整形长度
 								ss >> content_length;
 						}
 						return content_length;
@@ -307,10 +307,10 @@ class Connect
 						}
 						return line_.size();
 				}
-				void RecvRequestHead(std::string &head)//接收请求报头
+				void RecvRequestHead(std::string &head_)//接收请求报头
 				{
+						head_ = "";//清空head
 						std::string line_;
-						head_ =" ";
 						while( line_ != "\n" )//循环读取，放在rq_head直到遇见空行
 						{
 								line_ = "";
@@ -320,7 +320,7 @@ class Connect
 				}
 				void RecvRequestText(std::string &text_ ,int len_, std::string &param_)
 				{
-						char c_ = " ";
+						char c_;
 						int i_ = 0;
 						while(i_ < len_--)
 						{
@@ -338,7 +338,7 @@ class Connect
 								std::string &rsp_line_ = rsp_->rsp_line;
 								std::string &rsp_head_ = rsp_->rsp_head;
 								std::string &blank_ = rsp_->blank;
-								int fd = &rsp_->fd;
+								int fd = rsp_->fd;
 
 								send(sock, rsp_line_.c_str(), rsp_line_.size(), 0);
 								send(sock, rsp_head_.c_str(), rsp_head_.size(), 0);
@@ -358,7 +358,7 @@ class Entry{
 		public:
 				static int ProcessNonCgi(Connect *&conn_, Request *&rq_, Response *&rsp_ )
 				{
-						int &code_ = rsp_->code_;
+						int code_ = rsp_->code;
 						rsp_->MakeStatusLine();
 						rsp_->MakeResponseHead(rq_);
 						rsp_->OpenResource(rq_);

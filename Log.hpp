@@ -1,14 +1,22 @@
 #ifndef __LOG_HPP__
 #define __LOG_HPP__
 
-#include<string>
 #include<iostream>
+#include<string>
+#include<sys/time.h>
 
-#define INFO 0 
+#define INFO 0
 #define DEBUG 1
 #define WARNING 2
-#define ERROR 2
+#define ERROR 3
 
+uint64_t GetTimeStamp()//通过时间戳获取时间
+{
+		struct timeval time_;
+		gettimeofday(&time_ , NULL);
+		return time_.tv_sec;
+
+}
 std::string GetLogLevel(int level_)
 {
 		switch(level_)
@@ -26,10 +34,15 @@ std::string GetLogLevel(int level_)
 		}
 
 }//打印日志
-void LOG(int level_, std::string message_,std::string file_, int line_)
+void Log(int level_, std::string message_ ,std::string file_, int line_)
 {
-		std::cout << " [ " <<GetLogLevel(level_)<<" ] "<<" [ "<<\
-              file_ <<" : "<<line_ <<" ] "<<message_ <<std::endl;
+		std::cout <<" [ " <<GetTimeStamp() <<" ] "<< " [ " <<GetLogLevel(level_)<<" ] "<<" [ "<<\
+				file_ <<" : "<<line_ <<" ] "<<message_ <<std::endl;
 }
-#define LOG(level_, message_) LOG(level_, message_, __FILE__, __LINE__)
+
+#define LOG(level_,message_) Log(level_,message_,__FILE__,__LINE__)
+
 #endif
+
+
+

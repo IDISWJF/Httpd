@@ -1,0 +1,12 @@
+g++ -o HttpdServer HttpdServer.cc -lpthread  -std=c++11 
+In file included from HttpdServer.hpp:5:0,
+                 from HttpdServer.cc:1:
+ProtocolUtil.hpp: In member function ‘void Response::MakeResponseHead(Request*&)’:
+ProtocolUtil.hpp:256:53: error: cannot call member function ‘std::string ProtocolUtil::SuffixToType(const string&)’ without object
+       rsp_head += ProtocolUtil::SuffixToType(suffix_);
+                                                     ^
+ProtocolUtil.hpp: In member function ‘void Connect::RecvRequestHead(std::string&)’:
+ProtocolUtil.hpp:313:28: error: conversion from ‘std::string* {aka std::basic_string<char>*}’ to non-scalar type ‘std::string {aka std::basic_string<char>}’ requested
+       std::string head_ = &head;
+                            ^
+make: *** [HttpdServer] Error 1

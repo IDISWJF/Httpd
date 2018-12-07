@@ -1,8 +1,8 @@
 #ifndef __HTTPD_SERVER_HPP__
 #define __HTTPD_SERVER_HPP__
 
-#include "ProtocolUtil.hpp"
 #include <pthread.h>
+#include "ProtocolUtil.hpp"
 #include "Log.hpp"
 
 class HttpdServer{
@@ -35,8 +35,8 @@ class HttpdServer{
 								LOG(ERROR,"listen socket error");
 								exit(4);
 						}
+						LOG(INFO,"initServer success!");
 				}
-				LOG(0,"initServer success!");
 				void Start()
 				{
 						LOG(INFO,"Start Server begin");
@@ -45,11 +45,12 @@ class HttpdServer{
 								socklen_t len = sizeof(peer_);
 								int sock_ = accept(listen_sock,(struct sockaddr*)&peer_,&len);
 								if(sock_ < 0)
-                                {
+								{
 										LOG(WARNING,"accpet error");
 										continue;
 								}
 								//链接成功，创建线程，交给线程去执行
+								LOG(INFO,"Get New Client ,Create THread Handler Request..");								
 								pthread_t tid_;
 								int *sockp_ = new int;
 								*sockp_ = sock_;
