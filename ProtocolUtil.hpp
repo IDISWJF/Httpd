@@ -256,6 +256,7 @@ class Response{
 				} 
 				void MakeResponseHead(Request *&rq_)
 				{
+						LOG(INFO,"make response head");
 						rsp_head = "Content-Length: ";
 						rsp_head += ProtocolUtil::IntToString(rq_->GetResourceSize() );
 						rsp_head += "\n";
@@ -266,6 +267,7 @@ class Response{
 				}
 				void OpenResource(Request *&rq_)
 				{
+						LOG(INFO,"open resource");
 						std::string path_ = rq_->GetPath();
 						fd = open( path_.c_str(),O_RDONLY );   
 				}
@@ -339,6 +341,7 @@ class Connect
 				}
 				void SendResponse(Response *&rsp_,Request *&rq_, bool cgi_)
 				{
+						LOG(INFO,"send response");
 						std::string &rsp_line_ = rsp_->rsp_line;
 						std::string &rsp_head_ = rsp_->rsp_head;
 						std::string &blank_ = rsp_->blank;
@@ -347,6 +350,7 @@ class Connect
 						send(sock, blank_.c_str(), blank_.size(), 0);
 						if(cgi_)
 						{
+								LOG(INFO,"Is CGI");
 								std::string &rsp_text_ = rsp_->rsp_text;
 								send(sock, rsp_text_.c_str(), rsp_text_.size(), 0);
 						}
@@ -404,6 +408,9 @@ class Entry{
 
 								putenv((char*)cl_env_.c_str());//导入当前进程上下文数据
 
+								dup2(input[0],0);
+								dup2(output[1],1);
+
 								const std::string &path_ = rq_->GetPath();
 								execl(path_.c_str(), path_.c_str(), NULL);//无返回值：成功直接替换，只要返回了代表失败
 								//第一的参数：   
@@ -416,7 +423,7 @@ class Entry{
 
 								size_t size_ = param_.size();//资源大小
 								size_t total_ = 0;//目前总共写了多少
-								size_t curr_ =0;//每次写了多少
+								size_t curr_ = 0;//每次写了多少
 								const char *p_ = param_.c_str();
 								while( total_ < size_ && (curr_ = write(input[1], p_ + total_, size_ - total_)) > 0 )
 								{
@@ -490,16 +497,16 @@ class Entry{
 								goto end;
 						}
 						if( rq_->IsNeedRecvText() )//接收请求正文
-						{
+						{LOG(INFO,"recv text");
 								conn_->RecvRequestText(rq_->rq_text, rq_->GetContentLength(), rq_->GetParam() );
 						}
-						//响应接收完毕
+						LOG(INFO,"recv request over");
 						PorcessResponse(conn_, rq_, rsp_ );//处理响应
 
 end:
 						if(code_ != OK)
 						{
-								//							HandlerError(sock_);
+								//	HandlerError(sock_);
 						}
 						delete conn_;
 						delete rq_;
