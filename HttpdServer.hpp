@@ -52,9 +52,10 @@ class HttpdServer{
 								//链接成功，创建线程，交给线程去执行
 								LOG(INFO,"Get New Client ,Create THread Handler Request..");								
 								pthread_t tid_;
-								int *sockp_ = new int;
-								*sockp_ = sock_;
-								pthread_create(&tid_,NULL,Entry::HandlerRequest,&sock_);
+							    int *sockp_ = new int;
+							    *sockp_ = sock_;
+							 pthread_create(&tid_,NULL,Entry::HandlerRequest,(void*)sockp_);
+
 						}
 
 				}

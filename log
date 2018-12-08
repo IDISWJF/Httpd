@@ -1,12 +1,28 @@
 g++ -o HttpdServer HttpdServer.cc -lpthread  -std=c++11 
 In file included from HttpdServer.hpp:5:0,
                  from HttpdServer.cc:1:
-ProtocolUtil.hpp: In member function ‘void Response::MakeResponseHead(Request*&)’:
-ProtocolUtil.hpp:256:53: error: cannot call member function ‘std::string ProtocolUtil::SuffixToType(const string&)’ without object
-       rsp_head += ProtocolUtil::SuffixToType(suffix_);
-                                                     ^
-ProtocolUtil.hpp: In member function ‘void Connect::RecvRequestHead(std::string&)’:
-ProtocolUtil.hpp:313:28: error: conversion from ‘std::string* {aka std::basic_string<char>*}’ to non-scalar type ‘std::string {aka std::basic_string<char>}’ requested
-       std::string head_ = &head;
-                            ^
+ProtocolUtil.hpp: In static member function ‘static int Entry::ProcessCgi(Connect*&, Request*&, Response*&)’:
+ProtocolUtil.hpp:384:38: error: ‘class Response’ has no member named ‘rsp_text_’
+       std::string &rsp_text_ = rsp_->rsp_text_;
+                                      ^
+ProtocolUtil.hpp:408:30: error: ‘path’ was not declared in this scope
+         execl(path_.c_str(), path.c_str(), NULL);//无返回值：成功直接替换，只要返回了代表失败
+                              ^
+ProtocolUtil.hpp:420:16: error: ISO C++ forbids declaration of ‘p_’ with no type [-fpermissive]
+         const *p_ = param_.c_str();
+                ^
+ProtocolUtil.hpp:420:34: error: cannot convert ‘const char*’ to ‘const int*’ in initialization
+         const *p_ = param_.c_str();
+                                  ^
+ProtocolUtil.hpp:437:15: error: ‘class Response’ has no member named ‘SetResourceSize’
+         rsp_->SetResourceSize(rsp_text_.size());
+               ^
+ProtocolUtil.hpp:440:44: error: no matching function for call to ‘Connect::SendResponse(Request*&, Response*&, bool)’
+         conn_->SendResponse(rq_, rsp_, true);
+                                            ^
+ProtocolUtil.hpp:440:44: note: candidate is:
+ProtocolUtil.hpp:340:10: note: void Connect::SendResponse(Response*&, Request*&, bool)
+     void SendResponse(Response *&rsp_,Request *&rq_, bool cgi_)
+          ^
+ProtocolUtil.hpp:340:10: note:   no known conversion for argument 1 from ‘Request*’ to ‘Response*&’
 make: *** [HttpdServer] Error 1

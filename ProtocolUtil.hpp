@@ -17,6 +17,7 @@
 #include<arpa/inet.h>
 #include<netinet/in.h>
 #include<sys/sendfile.h>
+#include<sys/wait.h>
 
 #define NOT_FOUND 404
 #define OK 200
@@ -99,6 +100,10 @@ class Request{
 				{
 						return resource_size;
 				}
+				void SetResourceSize(int rs_)
+				{
+						resource_size = rs_;
+				}
 				std::string &GetParam()
 				{
 						return param;
@@ -154,14 +159,17 @@ class Request{
 								std::string sub_string_ = rq_head.substr(start,pos - start);//找到所有的子串
 								if( !sub_string_.empty() )
 								{//如果不为空，报头子串就是键值对<key:value>的形式存放
+										LOG(INFO,"substr is not empty!");								
 										ProtocolUtil::MakeKV(head_kv,sub_string_);
 								}
 								else
 								{
+										LOG(INFO,"substr is empty!");
 										break;
 								}
 								start = pos + 1;//从"\n"下一个开始找
 						}
+						return true;
 				}
 				int GetContentLength()
 				{//如果是post方法，报头中描述了正文长度，防止正文中‘\n’干扰，无法完整读取造成粘包问题
@@ -212,7 +220,7 @@ class Request{
 				}
 				bool IsNeedRecvText()//判断是否需要读正文
 				{
-						if( strcasecmp(method.c_str(),"POST") )
+						if( strcasecmp(method.c_str(),"POST") == 0 )//忽略大小写比较，相等为0，前者大为1
 						{
 								return true;
 						}
@@ -331,18 +339,21 @@ class Connect
 				}
 				void SendResponse(Response *&rsp_,Request *&rq_, bool cgi_)
 				{
+						std::string &rsp_line_ = rsp_->rsp_line;
+						std::string &rsp_head_ = rsp_->rsp_head;
+						std::string &blank_ = rsp_->blank;
+						send(sock, rsp_line_.c_str(), rsp_line_.size(), 0);
+						send(sock, rsp_head_.c_str(), rsp_head_.size(), 0);
+						send(sock, blank_.c_str(), blank_.size(), 0);
 						if(cgi_)
-						{}
+						{
+								std::string &rsp_text_ = rsp_->rsp_text;
+								send(sock, rsp_text_.c_str(), rsp_text_.size(), 0);
+						}
 						else
 						{
-								std::string &rsp_line_ = rsp_->rsp_line;
-								std::string &rsp_head_ = rsp_->rsp_head;
-								std::string &blank_ = rsp_->blank;
 								int fd = rsp_->fd;
 
-								send(sock, rsp_line_.c_str(), rsp_line_.size(), 0);
-								send(sock, rsp_head_.c_str(), rsp_head_.size(), 0);
-								send(sock, blank_.c_str(), blank_.size(), 0);
 								sendfile( sock, fd, NULL, rq_->GetResourceSize() );//发送文件的资源
 
 						}
@@ -364,11 +375,76 @@ class Entry{
 						rsp_->OpenResource(rq_);
 						conn_->SendResponse(rsp_, rq_, false);
 				}
+				static int ProcessCgi(Connect *&conn_, Request *&rq_, Response *&rsp_ )
+				{//把web服务器提供的程序跑起来，把我们传给服务器的参数交给这个程序，处理之后把结果返回给用户
+						int &code_ =rsp_->code;
+						int input[2];
+						int output[2];
+						std::string &param_ =rq_-> GetParam();
+						std::string &rsp_text_ = rsp_->rsp_text;
+						//现在在线程中，调用exec，就相当于在进程中调用exec
+						//服务器会挂，所以需要在线程中创建子进程，
+						pipe(input);
+						pipe(output);
+						//在fork前创建两个管道，方便父子进程读写
+						pid_t id = fork();
+						if(id < 0)
+						{
+								code_ = NOT_FOUND;
+								LOG(ERROR,"fork error");
+								return 0;
+						}
+						else if(id == 0)//站在子进程的角度，子进程
+						{
+								close(input[1]);//读，关闭写
+								close(output[0]);//写，关闭读
+
+								std::string cl_env_ = "Content-Length="; 
+								cl_env_ += ProtocolUtil::IntToString(param_.size());//将整形的size转换为string赋给cl_
+
+								putenv((char*)cl_env_.c_str());//导入当前进程上下文数据
+
+								const std::string &path_ = rq_->GetPath();
+								execl(path_.c_str(), path_.c_str(), NULL);//无返回值：成功直接替换，只要返回了代表失败
+								//第一的参数：   
+								exit(1);//程序替换不会替换文件描述符，环境变量信息也不会替换，只会替换常规信息和代码
+						}
+						else//父进程要写供别人读，关闭读端
+						{
+								close(input[0]);//
+								close(output[1]);//
+
+								size_t size_ = param_.size();//资源大小
+								size_t total_ = 0;//目前总共写了多少
+								size_t curr_ =0;//每次写了多少
+								const char *p_ = param_.c_str();
+								while( total_ < size_ && (curr_ = write(input[1], p_ + total_, size_ - total_)) > 0 )
+								{
+										total_ += curr_;
+								}
+
+								char c;
+								while(read(output[0], &c, 1) > 0)//读完之后，管道会返回0	
+								{
+										rsp_text_.push_back(c);
+								}
+								waitpid(id, NULL, 0);
+
+								close(input[1]);
+								close(output[0]);
+
+								rsp_->MakeStatusLine();
+								rq_->SetResourceSize(rsp_text_.size());
+								rsp_->MakeResponseHead(rq_);
+
+								conn_->SendResponse(rsp_, rq_, true);
+						}
+				}
 				static int PorcessResponse(Connect *&conn_, Request *&rq_, Response *&rsp_ )//处理响应
 				{
 						if( rq_->IsCgi() )
 						{
-								//ProcessCgi();
+								ProcessCgi(conn_, rq_, rsp_);
 						}
 						else
 						{
@@ -379,20 +455,22 @@ class Entry{
 				{
 						int sock_ = *(int*)arg_;
 						delete (int*)arg_;
+
 						Connect *conn_ = new Connect(sock_);
 						Request *rq_ = new Request();
 						Response *rsp_ = new Response();
-
 						int &code_ = rsp_->code;
-						conn_-> RecvOneLine(rq_->rq_line);
-						rq_->RequestOneLineParse();
-						if( !rq_->IsMethodLegal() )
+
+						LOG(INFO,"start recv request");
+						conn_-> RecvOneLine(rq_->rq_line);//接收请求行
+						rq_->RequestOneLineParse();//请求行解析
+						if( !rq_->IsMethodLegal() )//判断方法是否合法
 						{
 								code_ = NOT_FOUND;
 								goto end;
 						}
 
-						rq_->UriParse();
+						rq_->UriParse();//解析uri，判断路径是否合法
 
 						if( !rq_->IsPathLegal() )
 						{
@@ -401,7 +479,7 @@ class Entry{
 						}
 						LOG(INFO,"request path os ok");
 
-						conn_->RecvRequestHead(rq_->rq_head);
+						conn_->RecvRequestHead(rq_->rq_head);//处理报头，
 						if( rq_->RequestHeadParse() )
 						{
 								LOG(INFO,"parse head done");
@@ -411,7 +489,7 @@ class Entry{
 								code_ = NOT_FOUND;
 								goto end;
 						}
-						if( rq_->IsNeedRecvText() )
+						if( rq_->IsNeedRecvText() )//接收请求正文
 						{
 								conn_->RecvRequestText(rq_->rq_text, rq_->GetContentLength(), rq_->GetParam() );
 						}
