@@ -1,28 +1,11 @@
-g++ -o HttpdServer HttpdServer.cc -lpthread  -std=c++11 
-In file included from HttpdServer.hpp:5:0,
-                 from HttpdServer.cc:1:
-ProtocolUtil.hpp: In static member function ‘static int Entry::ProcessCgi(Connect*&, Request*&, Response*&)’:
-ProtocolUtil.hpp:384:38: error: ‘class Response’ has no member named ‘rsp_text_’
-       std::string &rsp_text_ = rsp_->rsp_text_;
-                                      ^
-ProtocolUtil.hpp:408:30: error: ‘path’ was not declared in this scope
-         execl(path_.c_str(), path.c_str(), NULL);//无返回值：成功直接替换，只要返回了代表失败
-                              ^
-ProtocolUtil.hpp:420:16: error: ISO C++ forbids declaration of ‘p_’ with no type [-fpermissive]
-         const *p_ = param_.c_str();
-                ^
-ProtocolUtil.hpp:420:34: error: cannot convert ‘const char*’ to ‘const int*’ in initialization
-         const *p_ = param_.c_str();
-                                  ^
-ProtocolUtil.hpp:437:15: error: ‘class Response’ has no member named ‘SetResourceSize’
-         rsp_->SetResourceSize(rsp_text_.size());
-               ^
-ProtocolUtil.hpp:440:44: error: no matching function for call to ‘Connect::SendResponse(Request*&, Response*&, bool)’
-         conn_->SendResponse(rq_, rsp_, true);
-                                            ^
-ProtocolUtil.hpp:440:44: note: candidate is:
-ProtocolUtil.hpp:340:10: note: void Connect::SendResponse(Response*&, Request*&, bool)
-     void SendResponse(Response *&rsp_,Request *&rq_, bool cgi_)
+In file included from testThreadPool.c:1:0:
+ThreadPool.hpp: In member function ‘void ThreadPool::PopTask(Task&)’:
+ThreadPool.hpp:115:10: error: no match for ‘operator=’ (operand types are ‘Task’ and ‘<unresolved overloaded function type>’)
+       t_ = task_queue.front;
           ^
-ProtocolUtil.hpp:340:10: note:   no known conversion for argument 1 from ‘Request*’ to ‘Response*&’
-make: *** [HttpdServer] Error 1
+ThreadPool.hpp:115:10: note: candidate is:
+In file included from testThreadPool.c:1:0:
+ThreadPool.hpp:10:7: note: Task& Task::operator=(const Task&)
+ class Task
+       ^
+ThreadPool.hpp:10:7: note:   no known conversion for argument 1 from ‘<unresolved overloaded function type>’ to ‘const Task&’
