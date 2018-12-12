@@ -19,11 +19,15 @@
 #include<sys/sendfile.h>
 #include<sys/wait.h>
 
-#define NOT_FOUND 404
 #define OK 200
+#define Not_Found 404
+#define Bad_Request 400
+#define Server_Error 500
 
 #define WEB_ROOT "wwwroot"
 #define HOME_PAGE "index.html"
+#define PAGE_404 "404.html"
+
 #define HTTP_VERSON "http/1.0"
 
 std::unordered_map<std::string, std::string> stuffix_map
@@ -61,10 +65,14 @@ class ProtocolUtil//协议工具
 						{
 								case 200:
 										return "OK";
+								case 400:
+										return "Bad Request";
 								case 404:
-										return "NOT FOUND";
+										return "Not Found";
+								case 500:
+										return "Internal Server Error";
 								default:
-										return "UNKNOW";
+										return "Unknow";
 						}
 				};
 				static std::string SuffixToType(const std::string &suffix_)//后缀转类型
@@ -111,7 +119,15 @@ class Request{
 				std::string &GetSuffix()		
 				{
 						return resource_suffix;
-				}						
+				}				
+				void SetSuffix(std::string suffix_)
+				{
+						resource_suffix = suffix_;
+				}
+				void SetPath(std::string &path_)
+				{
+						path = path_;
+				}		
 				std::string &GetPath()
 				{
 						return path;
@@ -394,14 +410,14 @@ class Entry{
 						pid_t id = fork();
 						if(id < 0)
 						{
-								code_ = NOT_FOUND;
+								code_ = Server_Error; 
 								LOG(ERROR,"fork error");
 								return 0;
 						}
 						else if(id == 0)//站在子进程的角度，子进程
 						{
-								close(input[1]);//读，关闭写
-								close(output[0]);//写，关闭读
+								close(input[1]);//读，子进程需要能读父进程往里写数据，所以关闭写端
+								close(output[0]);//写，子进程需要将替换后的程序执行结果交给父进程，往管道里写，所以关闭读端
 
 								std::string cl_env_ = "Content-Length="; 
 								cl_env_ += ProtocolUtil::IntToString(param_.size());//将整形的size转换为string赋给cl_
@@ -458,6 +474,38 @@ class Entry{
 								ProcessNonCgi(conn_, rq_, rsp_);
 						}
 				}
+				static void Process404(Connect *&conn_,Request *&rq_,Response *&rsp_)
+				{
+						std::string path_ = WEB_ROOT;
+						path_ += "/";
+						path_ += PAGE_404;
+
+						struct stat st;
+						stat(path_.c_str(), &st);    
+
+						rq_->SetResourceSize(st.st_size);//1:获得大小
+						rq_->SetSuffix(".html"); //2:设置后缀
+						rq_->SetPath(path_); //3:设置path
+
+
+								ProcessNonCgi(conn_, rq_, rsp_);
+				}
+				static void	HandlerError(Connect *&conn_, Request *&rq_,Response *&rsp_)
+				{
+						int &code_ =rsp_->code;
+						switch(code_)
+						{
+								case 400:
+										break;
+								case 404:
+										Process404(conn_, rq_, rsp_);
+										break;
+								case 500:
+										break;
+								case 503:
+										break;
+						}
+				}
 				static void *HandlerRequest(void *arg_)//处理请求
 				{
 						int sock_ = *(int*)arg_;
@@ -473,7 +521,8 @@ class Entry{
 						rq_->RequestOneLineParse();//请求行解析
 						if( !rq_->IsMethodLegal() )//判断方法是否合法
 						{
-								code_ = NOT_FOUND;
+								conn_->RecvRequestHead(rq_->rq_head);//处理报头，
+								code_ = Bad_Request;
 								goto end;
 						}
 
@@ -481,10 +530,11 @@ class Entry{
 
 						if( !rq_->IsPathLegal() )
 						{
-								code_ = NOT_FOUND;
+								conn_->RecvRequestHead(rq_->rq_head);//处理报头，
+								code_ = Not_Found;
 								goto end;
 						}
-						LOG(INFO,"request path os ok");
+						LOG(INFO,"request path is ok");
 
 						conn_->RecvRequestHead(rq_->rq_head);//处理报头，
 						if( rq_->RequestHeadParse() )
@@ -493,11 +543,12 @@ class Entry{
 						}
 						else
 						{
-								code_ = NOT_FOUND;
+								code_ = Bad_Request;
 								goto end;
 						}
-						if( rq_->IsNeedRecvText() )//接收请求正文
-						{LOG(INFO,"recv text");
+						if( rq_->IsNeedRecvText() )//接收响应正文
+						{
+								LOG(INFO,"recv text");
 								conn_->RecvRequestText(rq_->rq_text, rq_->GetContentLength(), rq_->GetParam() );
 						}
 						LOG(INFO,"recv request over");
@@ -506,7 +557,7 @@ class Entry{
 end:
 						if(code_ != OK)
 						{
-								//	HandlerError(sock_);
+								HandlerError(conn_, rq_, rsp_);
 						}
 						delete conn_;
 						delete rq_;
