@@ -3,14 +3,16 @@
 
 #include <pthread.h>
 #include "ProtocolUtil.hpp"
+#include "ThreadPool.hpp"
 #include "Log.hpp"
 
 class HttpdServer{
 		private:
 				int listen_sock;
 				int port;
+				ThreadPool *tp;
 		public:
-				HttpdServer(int port_):port(port_),listen_sock(-1)
+				HttpdServer(int port_):port(port_),listen_sock(-1),tp(NULL)
 		{}
 				void InitServer()
 				{
@@ -35,6 +37,8 @@ class HttpdServer{
 								LOG(ERROR,"listen socket error");
 								exit(4);
 						}
+						tp = new ThreadPool();
+						tp->initThreadPool();
 						LOG(INFO,"initServer success!");
 				}
 				void Start()
@@ -49,12 +53,17 @@ class HttpdServer{
 										LOG(WARNING,"accpet error");
 										continue;
 								}
+								Task t;
+								t.SetTask(sock_,Entry:: HandlerRequest);
+								tp->PushTask(t);
+
+
 								//链接成功，创建线程，交给线程去执行
-								LOG(INFO,"Get New Client ,Create THread Handler Request..");								
-								pthread_t tid_;
-							    int *sockp_ = new int;
-							    *sockp_ = sock_;
-							 pthread_create(&tid_,NULL,Entry::HandlerRequest,(void*)sockp_);
+								////		LOG(INFO,"Get New Client ,Create THread Handler Request..");								
+								////		pthread_t tid_;
+								////	    int *sockp_ = new int;
+								////	    *sockp_ = sock_;
+								////	 pthread_create(&tid_,NULL,Entry::HandlerRequest,(void*)sockp_);
 
 						}
 

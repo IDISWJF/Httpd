@@ -63,7 +63,7 @@ class ThreadPool
 								pthread_exit((void*)0);
 						}
 						thread_idle_num++;
-						pthread_cond_wait(&cond, &lock);//回自动释放锁，被唤醒时自动获得锁
+						pthread_cond_wait(&cond, &lock);//会自动释放锁，被唤醒时自动获得锁
 						thread_idle_num--;			
 				}
 				void WakeupOneThread()

@@ -488,7 +488,7 @@ class Entry{
 						rq_->SetPath(path_); //3:设置path
 
 
-								ProcessNonCgi(conn_, rq_, rsp_);
+						ProcessNonCgi(conn_, rq_, rsp_);
 				}
 				static void	HandlerError(Connect *&conn_, Request *&rq_,Response *&rsp_)
 				{
@@ -506,10 +506,10 @@ class Entry{
 										break;
 						}
 				}
-				static void *HandlerRequest(void *arg_)//处理请求
+				static int HandlerRequest(int sock_)//处理请求
 				{
-						int sock_ = *(int*)arg_;
-						delete (int*)arg_;
+						////	int sock_ = *(int*)arg_;
+						////	delete (int*)arg_;
 
 						Connect *conn_ = new Connect(sock_);
 						Request *rq_ = new Request();
@@ -562,6 +562,7 @@ end:
 						delete conn_;
 						delete rq_;
 						delete rsp_;
+						return code_;
 				}
 };
 #endif

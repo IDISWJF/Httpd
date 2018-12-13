@@ -10,7 +10,14 @@ cgi:
 	g++ -o TestCgi TestCgi.cc
 .PHONY:clean
 clean:
-	rm -f $(bin) TestCgi
+	rm -rf $(bin) TestCgi output
 .PHONY:Cal
 Cal:
 	g++ -o Cal Cal.cc
+.PHONY:output
+output:
+	mkdir output
+	cp $(bin) output
+	cp -rf wwwroot output
+	cp Cal output/wwwroot
+	cp start.sh output
