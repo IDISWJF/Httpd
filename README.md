@@ -19,3 +19,7 @@ A simple server to realize the function that customers can quickly request resou
 HTTP protocol, TCP protocol, Socket programming, multithreading programming.
 
 Linux environment: vim, Makefile
+
+how to ues ：
+	1：make
+	2：Executable file + port
