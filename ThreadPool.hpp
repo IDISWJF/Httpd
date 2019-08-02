@@ -4,28 +4,32 @@
 #include<iostream>
 #include<queue>
 #include<pthread.h>
+#include <event2/event.h>
+#include <event2/listener.h>
+#include <event2/bufferevent.h>
 #include"Log.hpp"
 
-typedef int (*handler_t)(int);//函数指针
+//typedef event_base (*handler_t)(event_base);//函数指针
 class Task
 {
 		private:
-				int sock;
-				handler_t handler;
+				struct bufferevent* bev;
+				//handler_t handler;
 		public:
 				Task()
 				{
-						sock = -1;
-						handler = NULL;
+						bev = NULL;
+						//handler = NULL;
 				};
-				void SetTask(int sock_,handler_t handler_)
+				void SetTask(struct bufferevent* bev_)
 				{
-						sock = sock_;
-						handler = handler_;
+						bev = bev_;
+						//handler = handler_;
 				}
 				void Run()
 				{
-						handler(sock);
+						//handler(base);
+						 Entry:: HandlerRequest(bev);
 				}
 				~Task()
 				{}

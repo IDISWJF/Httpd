@@ -2,79 +2,118 @@
 #define __HTTPD_SERVER_HPP__
 
 #include <pthread.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <event2/event.h>
+#include <event2/listener.h>
+#include <event2/bufferevent.h>
 #include "ProtocolUtil.hpp"
 #include "ThreadPool.hpp"
 #include "Log.hpp"
 
+static void listen_cb(struct evconnlistener* listen,evutil_socket_t fd,
+		sockaddr* addr,int len, void* ptr);
+static void read_cb(struct bufferevent* bev, void* arg);
+static void event_cb(struct bufferevent* bev, short events, void* arg);
+
+
 class HttpdServer{
-		private:
-				int listen_sock;
-				int port;
-				ThreadPool *tp;
-		public:
-				HttpdServer(int port_):port(port_),listen_sock(-1),tp(NULL)
-		{}
-				void InitServer()
-				{
-						listen_sock = socket(AF_INET,SOCK_STREAM,0);//创建监听套接字
-						if(listen_sock < 0){
-								LOG(ERROR,"create socket error");
-								exit(2);//合理规划退出码
-						}
-						int opt_ = 1;//设置端口复用，快速重启服务器
-						setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt_, sizeof(opt_) );//即便进入TIME_WAIT也能立即重启
+	private:
+		int listen_sock;
+		int port;
+		ThreadPool *tp;
+		event_base *base_;
 
-						struct sockaddr_in local_;
-						local_.sin_family = AF_INET;
-						local_.sin_port = htons(port);
-						local_.sin_addr.s_addr = INADDR_ANY;//无符号长整型的宏
+	public:
 
-						if(bind(listen_sock,(struct sockaddr*)&local_,sizeof(local_))< 0 ){
-								LOG(ERROR,"bind socket error");
-								exit(3);
-						}
-						if(listen(listen_sock,5)<0){
-								LOG(ERROR,"listen socket error");
-								exit(4);
-						}
-						tp = new ThreadPool();
-						tp->initThreadPool();
-						LOG(INFO,"initServer success!");
-				}
-				void Start()
-				{
-						LOG(INFO,"Start Server begin");
-						for(;;){
-								struct sockaddr_in peer_;
-								socklen_t len = sizeof(peer_);
-								int sock_ = accept(listen_sock,(struct sockaddr*)&peer_,&len);
-								if(sock_ < 0)
-								{
-										LOG(WARNING,"accpet error");
-										continue;
-								}
-								Task t;
-								t.SetTask(sock_,Entry:: HandlerRequest);
-								tp->PushTask(t);
+		event_base* GetEventBase() { return base_; }
+		ThreadPool* GetThreadPool() { return tp; }
+		HttpdServer(int port_):port(port_),listen_sock(-1)
+	{}
+		void run()
+		{
 
+			// new是操作符一旦申请失败会抛异常，所以不需要判断
+			//serp->InitServer();
+			//serp->Start();
+			//创建事件处理框架
+			base_ = event_base_new();
+			//init server info
+			struct sockaddr_in serv;
 
-								//链接成功，创建线程，交给线程去执行
-								////		LOG(INFO,"Get New Client ,Create THread Handler Request..");								
-								////		pthread_t tid_;
-								////	    int *sockp_ = new int;
-								////	    *sockp_ = sock_;
-								////	 pthread_create(&tid_,NULL,Entry::HandlerRequest,(void*)sockp_);
+			serv.sin_family = AF_INET;
+			serv.sin_port = htons(1234);
+			serv.sin_addr.s_addr = htonl(INADDR_ANY);
+			//创建监听套接字
+			//绑定
+			//监听
+			//等待并接收了连接
+			struct evconnlistener* listen = NULL;
+			//当有新的连接过来时，listen_cb 会被调用
+			//第三参数是为了给回调提供参数
+			//第五个参数backlog(-1)使用默认最大数量128
+			listen = evconnlistener_new_bind(base_, listen_cb, this,
+					LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE, 
+					-1, (struct sockaddr*)&(serv) , sizeof(serv));
+			//开始事件循环
+			event_base_dispatch(base_);    
+			LOG(INFO,"dispatch !!!");
+			//释放资源
+			//evconnlistener_free(listen);
+			event_base_free(base_);
+		}
 
-						}
-
-				}
-
-				~HttpdServer()
-				{
-						if(listen_sock != -1){
-								close(listen_sock);
-						}
-						port =-1;
-				}
+		~HttpdServer()
+		{
+			if(listen_sock != -1){
+				close(listen_sock);
+			}
+			port =-1;
+		}
 };
+
+static void listen_cb(struct evconnlistener* listen,evutil_socket_t fd,
+		sockaddr* addr,int len, void* ptr)
+{
+	HttpdServer* serp = (HttpdServer*)ptr;
+	//LOG(INFO,"listen_cb");
+	//std::cout<<"listen_cb fd: "<<fd<<std::endl;
+	struct  bufferevent* bev = bufferevent_socket_new(serp->GetEventBase(), fd, 
+			BEV_OPT_CLOSE_ON_FREE );
+
+	bufferevent_setcb(bev, read_cb, NULL, event_cb, ptr);
+
+	bufferevent_enable(bev, EV_READ | EV_PERSIST); 
+
+}
+
+static void read_cb(struct bufferevent* bev, void* arg)
+{
+	LOG(INFO,"read_cd ！！！");
+
+	HttpdServer* hs = (HttpdServer*)arg;;
+	ThreadPool* tp_ = hs->GetThreadPool();
+	tp_ = new ThreadPool();
+	tp_->initThreadPool();
+	LOG(INFO,"initServer success!");
+
+	Task t;
+	t.SetTask(bev);
+	tp_->PushTask(t);
+}
+
+static void event_cb(struct bufferevent* bev, short events, void* arg)
+{
+	if(events & BEV_EVENT_EOF)
+	{
+		std::cout<<" connect closed " <<std::endl;
+	}
+	else if(events & BEV_EVENT_ERROR)
+	{
+		std::cout<<" other error " <<std::endl;
+	}
+	bufferevent_free(bev);
+}
 #endif

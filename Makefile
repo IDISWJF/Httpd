@@ -2,18 +2,13 @@ bin=HttpdServer
 cc=g++
 LDFLAGS=-lpthread 
 .PHONY:all
-all:$(bin) cgi Cal
+all:$(bin) 
 $(bin):HttpdServer.cc
-	$(cc) -o $@ $^ $(LDFLAGS) -std=c++11 
-.PHONY:cgi
-cgi:
-	g++ -o TestCgi TestCgi.cc
+	$(cc) -o $@ $^ $(LDFLAGS) -g -std=c++11 -levent
 .PHONY:clean
 clean:
 	rm -rf $(bin) TestCgi output
-.PHONY:Cal
-Cal:
-	g++ -o Cal Cal.cc
+	rm -f *.o *.hpp.gch
 .PHONY:output
 output:
 	mkdir output
