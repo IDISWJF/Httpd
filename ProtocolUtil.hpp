@@ -32,7 +32,7 @@
 
 std::unordered_map<std::string, std::string> stuffix_map
 {
-		{".html","text/html"},
+		        {".html","text/html"},
 				{".htm", "text/html"},
 				{".css", "text/css"},
 				{".jc", "application/x-javascript"}

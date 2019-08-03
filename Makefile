@@ -4,7 +4,7 @@ LDFLAGS=-lpthread
 .PHONY:all
 all:$(bin) 
 $(bin):HttpdServer.cc
-	$(cc) -o $@ $^ $(LDFLAGS) -std=c++11 
+	$(cc) -o $@ $^ $(LDFLAGS) -std=c++11 -levent
 .PHONY:clean
 clean:
 	rm -rf $(bin) TestCgi output

@@ -1,80 +1,79 @@
 #ifndef __HTTPD_SERVER_HPP__
 #define __HTTPD_SERVER_HPP__
 
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <event2/event.h>
+#include <event2/listener.h>
+#include <event2/bufferevent.h>
 #include <pthread.h>
 #include "ProtocolUtil.hpp"
 #include "ThreadPool.hpp"
 #include "Log.hpp"
 
 class HttpdServer{
-		private:
-				int listen_sock;
-				int port;
-				ThreadPool *tp;
-		public:
-				HttpdServer(int port_):port(port_),listen_sock(-1),tp(NULL)
-		{}
-				void InitServer()
-				{
-						listen_sock = socket(AF_INET,SOCK_STREAM,0);//创建监听套接字
-						if(listen_sock < 0){
-								LOG(ERROR,"create socket error");
-								exit(2);//合理规划退出码
-						}
-						int opt_ = 1;//设置端口复用，快速重启服务器
-						setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt_, sizeof(opt_) );//即便进入TIME_WAIT也能立即重启
+	private:
+		int listen_sock;
+		int port;
+		int socket;
+		ThreadPool *tp;
+	public:
+		HttpdServer(int port_):port(port_),socket(-1),listen_sock(-1),tp(NULL)
+	{}
+		void InitServer()
+		{
+			tp = new ThreadPool();
+			tp->initThreadPool();
+			LOG(INFO,"initServer success!");
+		}
+		void read_cb(struct bufferevent* bev, void* arg)
+		{
+			LOG(INFO,"Start Server begin");
 
-						struct sockaddr_in local_;
-						local_.sin_family = AF_INET;
-						local_.sin_port = htons(port);
-						local_.sin_addr.s_addr = INADDR_ANY;//无符号长整型的宏
+			Task t;
+			t.SetTask(socket,Entry:: HandlerRequest);
+			tp->PushTask(t);
 
-						if(bind(listen_sock,(struct sockaddr*)&local_,sizeof(local_))< 0 ){
-								LOG(ERROR,"bind socket error");
-								exit(3);
-						}
-						if(listen(listen_sock,5)<0){
-								LOG(ERROR,"listen socket error");
-								exit(4);
-						}
-						tp = new ThreadPool();
-						tp->initThreadPool();
-						LOG(INFO,"initServer success!");
-				}
-				void Start()
-				{
-						LOG(INFO,"Start Server begin");
-						for(;;){
-								struct sockaddr_in peer_;
-								socklen_t len = sizeof(peer_);
-								int sock_ = accept(listen_sock,(struct sockaddr*)&peer_,&len);
-								if(sock_ < 0)
-								{
-										LOG(WARNING,"accpet error");
-										continue;
-								}
-								Task t;
-								t.SetTask(sock_,Entry:: HandlerRequest);
-								tp->PushTask(t);
+		}
+		//事件回调
+		void event_cb(struct bufferevent* bev, short events, void* arg)
+		{
+			if(events & BEV_EVENT_EOF)
+			{
+				std::cout<<" connect closed " <<std::endl;
+			}
+			else if(events & BEV_EVENT_ERROR)
+			{
+				std::cout<<" other error " <<std::endl;
+			}
+			bufferevent_free(bev);
+		}
+		void getsocket(evutil_socket_t fd_)
+		{
+			socket = fd_;
+		}
 
-
-								//链接成功，创建线程，交给线程去执行
-								////		LOG(INFO,"Get New Client ,Create THread Handler Request..");								
-								////		pthread_t tid_;
-								////	    int *sockp_ = new int;
-								////	    *sockp_ = sock_;
-								////	 pthread_create(&tid_,NULL,Entry::HandlerRequest,(void*)sockp_);
-
-						}
-
-				}
-
-				~HttpdServer()
-				{
-						if(listen_sock != -1){
-								close(listen_sock);
-						}
-						port =-1;
-				}
+		void listen_cb(struct  evconnlistener* listen,
+				evutil_socket_t fd,
+				struct  sockaddr* addr,
+				int len, void* ptr)
+		{
+			//得到传进来的event_base
+			struct event_base* base = (struct event_base*)ptr;
+			struct  bufferevent* bev = NULL;
+			bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
+			getsocket(fd);
+			bufferevent_setcb(bev, HttpdServer::read_cb, NULL, NULL, HttpdServer::event_cb);
+			bufferevent_enable(bev, EV_READ);   
+		}
+		~HttpdServer()
+		{
+			if(listen_sock != -1){
+				close(listen_sock);
+			}
+			port =-1;
+		}
 };
 #endif
