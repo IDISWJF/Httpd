@@ -297,28 +297,25 @@ class Response{
 };
 class Connect
 {
-		private:
-				int sock;
-		public:
-				Connect(int sock_):sock(sock_)
+	private:
+	struct bufferevent* bev;
+	public:
+				Connect(struct bufferevent* bev_):bev(bev_)
 		{}
 				int RecvOneLine(std::string &line_)//读一行
 				{
 						char c = 'x';//一次读一个字符,且必须要初始化，否则随机值可能是\n就不会循环
 						while(c != '\n')
 						{
-								ssize_t s = recv(sock,&c,1,0);
+								ssize_t s = bufferevent_read(bev, &c, 1);
 								if(s > 0)
 								{// 区分 \n,\r\n,\r 都代表一个意思，所以将三者都替换从\n
 										if(c == '\r')
 										{
-												recv(sock,&c,1,MSG_PEEK);//MSG_PEEK标志会将套接字接收队列中的可读的数据拷贝到缓冲区，
-												//但不会使套接子接收队列中的数据减少，
-												//常见的是：例如调用recv或read后，导致套接字接收队列中的数据被读取后而减少，
-												//而指定了MSG_PEEK标志可通过返回值获得可读数据长度，并且不会减少套接字接收缓冲区中的数据
-												//所以可以供程序的其他部分继续读取。
+												bufferevent_read(bev, &c, 1);
 												if(c == '\n'){//如果是\r\n,在接收一次而不push，\r\n=\n
-														recv(sock,&c,1,0);
+														line_.push_back(c);
+														break;
 												}
 												else{
 														c = '\n';//如果走到这一步，说明是\r ,直接替换成\n
@@ -350,7 +347,7 @@ class Connect
 						int i_ = 0;
 						while(i_ < len_--)
 						{
-								recv(sock, &c_ ,1 ,0);
+								bufferevent_read(bev, &c_ ,1);
 								text_.push_back(c_);
 						}
 						param_ = text_;
@@ -361,32 +358,30 @@ class Connect
 						std::string &rsp_line_ = rsp_->rsp_line;
 						std::string &rsp_head_ = rsp_->rsp_head;
 						std::string &blank_ = rsp_->blank;
-						send(sock, rsp_line_.c_str(), rsp_line_.size(), 0);
-						send(sock, rsp_head_.c_str(), rsp_head_.size(), 0);
-						send(sock, blank_.c_str(), blank_.size(), 0);
+						bufferevent_write(bev, rsp_line_.c_str(), rsp_line_.size());
+						bufferevent_write(bev, rsp_head_.c_str(), rsp_head_.size());
+						bufferevent_write(bev, blank_.c_str(), blank_.size());
 						if(cgi_)
 						{
 								LOG(INFO,"Is CGI");
 								std::string &rsp_text_ = rsp_->rsp_text;
-								send(sock, rsp_text_.c_str(), rsp_text_.size(), 0);
+								bufferevent_write(bev, rsp_text_.c_str(), rsp_text_.size());
 						}
 						else
 						{
 								int fd = rsp_->fd;
 
-								sendfile( sock, fd, NULL, rq_->GetResourceSize() );//发送文件的资源
+								//sendfile(HttpdServe::fd_,fd,NULL,rq_->GetResourceSize);//发送文件的资源
 
 						}
 				}
-				~Connect()
-				{
-						if(sock >= 0)
-								close(sock);
-				}
+
 
 };
 class Entry{
-		public:
+	private:
+	struct bufferevent* bev;
+	public:
 				static int ProcessNonCgi(Connect *&conn_, Request *&rq_, Response *&rsp_ )
 				{
 						int code_ = rsp_->code;
@@ -506,12 +501,12 @@ class Entry{
 										break;
 						}
 				}
-				static int HandlerRequest(int sock_)//处理请求
+				static int HandlerRequest(struct bufferevent* bev)//处理请求
 				{
 						////	int sock_ = *(int*)arg_;
 						////	delete (int*)arg_;
 
-						Connect *conn_ = new Connect(sock_);
+						Connect *conn_ = new Connect(bev);
 						Request *rq_ = new Request();
 						Response *rsp_ = new Response();
 						int &code_ = rsp_->code;
